@@ -5,7 +5,7 @@ HTTP-сервер и реестр маршрутов для Sudzekai Web OS.
 ## Установка
 
 ```bash
-go get github.com/sudzekai-web-os/server@latest
+go get github.com/sudzekai-web-os/server
 ```
 
 ## Запуск сервера
