@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/sudzekai/web-os-api/packages/abstractions"
+	"github.com/sudzekai-web-os/abstractions"
 )
 
 type Server struct {
