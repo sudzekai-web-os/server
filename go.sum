@@ -1,4 +1,4 @@
-github.com/sudzekai-web-os/abstractions v1.0.1 h1:QrSOsO5jyFw1p+UNHF71DwmgXOTOVAKutLmNnVFBMh8=
-github.com/sudzekai-web-os/abstractions v1.0.1/go.mod h1:+rnliRovpU9THSXDXy0tLUfojCsYHRWxYi9JnztQbyY=
-github.com/sudzekai-web-os/types v1.0.1 h1:4N+7wNm/RftT+dUggodQplBQmEnBEScZDvYQphq6d/k=
-github.com/sudzekai-web-os/types v1.0.1/go.mod h1:Jn/g3qidr+vtt+xVwEPdzIwe0eQ2p7xH9OZe/weiWZ0=
+github.com/sudzekai-web-os/abstractions v1.0.4 h1:9HP/aQugyuPdF5FZw1mPDE8Y19s9246f+TU8ezXUoWk=
+github.com/sudzekai-web-os/abstractions v1.0.4/go.mod h1:jTbeMM1CVAVvMEYorgx/YNjpGlR08jg7hupHGrDfc2w=
+github.com/sudzekai-web-os/types v1.0.4 h1:3W5FgFJ/4/sT2yCLYkevy/Pfk3NSQvqpFv5LeF9z+iw=
+github.com/sudzekai-web-os/types v1.0.4/go.mod h1:Jn/g3qidr+vtt+xVwEPdzIwe0eQ2p7xH9OZe/weiWZ0=
