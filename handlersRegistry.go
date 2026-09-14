@@ -19,9 +19,9 @@ type HandlersRegistry struct {
 
 func NewHandlersRegistry(loggerFactory abstractions.ILoggerFactory) abstractions.IHandlersRegistry {
 	return &HandlersRegistry{
-		middlewares: make(map[int]types.Middleware),
-
-		handlers: make(map[string]http.HandlerFunc),
+		middlewares:    make(map[int]types.Middleware),
+		handlerCreator: NewHandlerCreator(loggerFactory),
+		handlers:       make(map[string]http.HandlerFunc),
 
 		logger: loggerFactory.NewLogger("handlers-registerer"),
 	}
