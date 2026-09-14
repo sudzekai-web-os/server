@@ -27,7 +27,10 @@ func NewHandlersRegistry(loggerFactory abstractions.ILoggerFactory) abstractions
 	}
 }
 
-func (hr *HandlersRegistry) AddHandler(pattern string, hnd func(r *http.Request) (result types.HandlerResult)) abstractions.IHandlersRegistry {
+func (hr *HandlersRegistry) AddHandler(
+	pattern string,
+	hnd func(r *http.Request) (result types.HandlerResult),
+) abstractions.IHandlersRegistry {
 	err := validateHandlerRegistration(pattern, hnd)
 
 	if err != nil {
@@ -39,7 +42,11 @@ func (hr *HandlersRegistry) AddHandler(pattern string, hnd func(r *http.Request)
 	return hr
 }
 
-func (hr *HandlersRegistry) AddProtectedHandler(pattern string, hnd func(r *http.Request) (result types.HandlerResult), roles []string) abstractions.IHandlersRegistry {
+func (hr *HandlersRegistry) AddProtectedHandler(
+	pattern string,
+	hnd func(r *http.Request) (result types.HandlerResult),
+	roles []string,
+) abstractions.IHandlersRegistry {
 	err := validateHandlerRegistration(pattern, hnd)
 
 	if err != nil {
