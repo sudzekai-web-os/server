@@ -5,135 +5,256 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sudzekai-web-os/abstractions"
-	"github.com/sudzekai-web-os/types"
+	"github.com/sudzekai-web-os/core"
 )
 
 type HandlersRegistry struct {
-	middlewares map[int]types.Middleware
-	handlers    map[string]http.HandlerFunc
-
+	middlewares    map[int]core.Middleware
+	handlers       map[string]http.HandlerFunc
 	handlerCreator *HandlerCreator
-	logger         abstractions.ILogger
+	logger         core.ILogger
 }
 
-func NewHandlersRegistry(loggerFactory abstractions.ILoggerFactory) abstractions.IHandlersRegistry {
+func NewHandlersRegistry(loggerFactory core.ILoggerFactory) core.IHandlersRegistry {
 	return &HandlersRegistry{
-		middlewares:    make(map[int]types.Middleware),
-		handlerCreator: NewHandlerCreator(loggerFactory),
+		middlewares:    make(map[int]core.Middleware),
 		handlers:       make(map[string]http.HandlerFunc),
-
-		logger: loggerFactory.NewLogger("handlers-registerer"),
+		handlerCreator: NewHandlerCreator(loggerFactory),
+		logger:         loggerFactory.NewLogger("handlers-registerer"),
 	}
 }
 
 func (hr *HandlersRegistry) AddHandler(
 	pattern string,
-	hnd func(r *http.Request) (result types.HandlerResult),
-) abstractions.IHandlersRegistry {
-	err := validateHandlerRegistration(pattern, hnd)
-
-	if err != nil {
-		hr.logger.LogError("ошибка добавления обработчика для %s: %s. обработчик пропускается...", pattern, err.Error())
+	handler core.HandlerFunc,
+) core.IHandlersRegistry {
+	if err := validateHandlerRegistration(pattern, handler); err != nil {
+		hr.logRegistrationError(pattern, err)
+		return hr
 	}
 
-	hr.handlers[pattern] = hr.handlerCreator.CreateHandler(hnd)
+	hr.handlers[pattern] = hr.handlerCreator.CreateHandler(handler)
 	hr.logger.LogDebug("добавлен обработчик для %s", pattern)
+
+	return hr
+}
+
+func (hr *HandlersRegistry) AddNoFilterHandler(
+	pattern string,
+	handler http.HandlerFunc,
+) core.IHandlersRegistry {
+	if err := validateHTTPHandler(pattern, handler); err != nil {
+		hr.logRegistrationError(pattern, err)
+		return hr
+	}
+
+	hr.handlers[pattern] = handler
+	hr.logger.LogDebug(
+		"добавлен обработчик без фильтра результата для %s",
+		pattern,
+	)
+
 	return hr
 }
 
 func (hr *HandlersRegistry) AddProtectedHandler(
 	pattern string,
-	hnd func(r *http.Request) (result types.HandlerResult),
+	handler core.HandlerFunc,
 	roles []string,
-) abstractions.IHandlersRegistry {
-	err := validateHandlerRegistration(pattern, hnd)
-
-	if err != nil {
-		hr.logger.LogError("ошибка добавления обработчика для %s: %s. обработчик пропускается...", pattern, err.Error())
+) core.IHandlersRegistry {
+	if err := validateHandlerRegistration(pattern, handler); err != nil {
+		hr.logRegistrationError(pattern, err)
+		return hr
 	}
 
-	handler, err := hr.handlerCreator.CreateProtectedHandler(types.NewProtectedHandler(hnd, roles))
+	createdHandler, err := hr.handlerCreator.CreateProtectedHandler(
+		handler,
+		roles,
+	)
 
 	if err != nil {
-		hr.logger.LogError("ошибка добавления обработчика для %s: %s. обработчик пропускается...", pattern, err.Error())
+		hr.logRegistrationError(pattern, err)
+		return hr
 	}
 
-	hr.handlers[pattern] = handler
-	hr.logger.LogDebug("добавлен защищенный обработчик для %s с разрешёнными ролями: %s", pattern, strings.Join(roles, ","))
+	hr.handlers[pattern] = createdHandler
+	hr.logger.LogDebug(
+		"добавлен защищенный обработчик для %s с разрешёнными ролями: %s",
+		pattern,
+		strings.Join(roles, ","),
+	)
+
 	return hr
 }
 
-func (hr *HandlersRegistry) AddMiddleware(pos int, middleware types.Middleware) abstractions.IHandlersRegistry {
-	position := len(hr.middlewares)
-
-	if position >= pos {
-		position = pos
+func (hr *HandlersRegistry) AddProtectedNoFilterHandler(
+	pattern string,
+	handler http.HandlerFunc,
+	roles []string,
+) core.IHandlersRegistry {
+	if err := validateHTTPHandler(pattern, handler); err != nil {
+		hr.logRegistrationError(pattern, err)
+		return hr
 	}
+
+	createdHandler, err := hr.handlerCreator.CreateNoFilterProtectedHandler(
+		handler,
+		roles,
+	)
+
+	if err != nil {
+		hr.logRegistrationError(pattern, err)
+		return hr
+	}
+
+	hr.handlers[pattern] = createdHandler
+	hr.logger.LogDebug(
+		"добавлен защищенный обработчик для %s с разрешёнными ролями: %s",
+		pattern,
+		strings.Join(roles, ","),
+	)
+
+	return hr
+}
+
+func (hr *HandlersRegistry) AddMiddleware(
+	position int,
+	middleware core.Middleware,
+) core.IHandlersRegistry {
+	if middleware == nil {
+		hr.logger.LogError(
+			"ошибка добавления промежуточного ПО: middleware равен nil",
+		)
+		return hr
+	}
+
+	position = normalizeMiddlewarePosition(
+		position,
+		len(hr.middlewares),
+	)
 
 	hr.middlewares[position] = middleware
+	hr.logger.LogDebug(
+		"добавлено промежуточное ПО в позиции %d",
+		position,
+	)
 
-	hr.logger.LogDebug("добавлено промежуточное ПО в позиции %d", position)
 	return hr
 }
 
-func (hr *HandlersRegistry) SetJwtMiddleware(jwt types.JwtMiddleware) abstractions.IHandlersRegistry {
+func (hr *HandlersRegistry) SetJwtMiddleware(
+	jwt core.JwtMiddleware,
+) core.IHandlersRegistry {
 	hr.handlerCreator.SetJwtMiddleware(jwt)
 	hr.logger.LogDebug("установлено защищающее промежуточное ПО")
+
 	return hr
 }
 
-func (hr *HandlersRegistry) SetResultFilter(filter types.ResultFilter) abstractions.IHandlersRegistry {
+func (hr *HandlersRegistry) SetResultFilter(
+	filter core.ResultFilter,
+) core.IHandlersRegistry {
 	hr.handlerCreator.SetResultFilter(filter)
 	hr.logger.LogDebug("установлен фильтр ответов")
+
 	return hr
 }
 
 func (hr *HandlersRegistry) GetHandler() http.Handler {
 	mux := http.NewServeMux()
 
-	h := http.Handler(mux)
-
 	for pattern, handler := range hr.handlers {
 		mux.HandleFunc(pattern, handler)
-		hr.logger.LogDebug("зарегистрирован обработчик для %s", pattern)
+		hr.logger.LogDebug(
+			"зарегистрирован обработчик для %s",
+			pattern,
+		)
 	}
 
-	for pos, middleware := range hr.middlewares {
-		h = middleware(h)
-		hr.logger.LogDebug("зарегистрировано промежуточное ПО в позиции %d", pos)
+	var handler http.Handler = mux
+
+	for position, middleware := range hr.middlewares {
+		handler = middleware(handler)
+		hr.logger.LogDebug(
+			"зарегистрировано промежуточное ПО в позиции %d",
+			position,
+		)
 	}
 
-	return h
+	return handler
 }
 
-func (hr *HandlersRegistry) GetRoutes() (result []string) {
-	result = make([]string, 0)
+func (hr *HandlersRegistry) GetRoutes() []string {
+	routes := make([]string, 0, len(hr.handlers))
 
 	for route := range hr.handlers {
-		result = append(result, route)
+		routes = append(routes, route)
 	}
 
-	return
+	return routes
 }
 
-func (hr *HandlersRegistry) ClearRoutes() {
-	for k := range hr.handlers {
-		delete(hr.handlers, k)
-	}
+func (hr *HandlersRegistry) ClearRoutes() core.IHandlersRegistry {
+	clear(hr.handlers)
+
+	return hr
 }
 
-func validateHandlerRegistration(endpointPattern string, handler types.HandlerFunc) error {
+func (hr *HandlersRegistry) logRegistrationError(
+	pattern string,
+	err error,
+) {
+	hr.logger.LogError(
+		"ошибка добавления обработчика для %s: %s. обработчик пропускается...",
+		pattern,
+		err.Error(),
+	)
+}
+
+func validateHandlerRegistration(
+	pattern string,
+	handler core.HandlerFunc,
+) error {
 	if handler == nil {
 		return fmt.Errorf("handler равен nil")
 	}
 
-	fields := strings.Fields(endpointPattern)
+	return validatePattern(pattern)
+}
+
+func validateHTTPHandler(
+	pattern string,
+	handler http.HandlerFunc,
+) error {
+	if handler == nil {
+		return fmt.Errorf("handler равен nil")
+	}
+
+	return validatePattern(pattern)
+}
+
+func normalizeMiddlewarePosition(
+	position int,
+	length int,
+) int {
+	if position < 0 {
+		return 0
+	}
+
+	if position > length {
+		return length
+	}
+
+	return position
+}
+
+func validatePattern(pattern string) error {
+	fields := strings.Fields(pattern)
 
 	if len(fields) != 2 {
 		return fmt.Errorf(
 			"неверный формат паттерна %s, ожидается: GET /example/{route}",
-			endpointPattern,
+			pattern,
 		)
 	}
 

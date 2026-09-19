@@ -5,77 +5,110 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/sudzekai-web-os/abstractions"
-	"github.com/sudzekai-web-os/types"
+	"github.com/sudzekai-web-os/core"
 )
 
 type HandlerCreator struct {
-	jwtMiddleware types.JwtMiddleware
-	resultFilter  types.ResultFilter
+	jwtMiddleware core.JwtMiddleware
+	resultFilter  core.ResultFilter
 
-	loggerFactory abstractions.ILoggerFactory
+	logger core.ILogger
 }
 
-func NewHandlerCreator(loggerFactory abstractions.ILoggerFactory) *HandlerCreator {
+func NewHandlerCreator(loggerFactory core.ILoggerFactory) *HandlerCreator {
 	return &HandlerCreator{
-		loggerFactory: loggerFactory,
+		logger: loggerFactory.NewLogger("handler-creator"),
 	}
 }
 
-func (hc *HandlerCreator) SetJwtMiddleware(jwt types.JwtMiddleware) *HandlerCreator {
+func (hc *HandlerCreator) SetJwtMiddleware(
+	jwt core.JwtMiddleware,
+) *HandlerCreator {
 	hc.jwtMiddleware = jwt
 	return hc
 }
 
-func (hc *HandlerCreator) SetResultFilter(filter types.ResultFilter) *HandlerCreator {
+func (hc *HandlerCreator) SetResultFilter(
+	filter core.ResultFilter,
+) *HandlerCreator {
 	hc.resultFilter = filter
 	return hc
 }
 
-func (hc *HandlerCreator) CreateProtectedHandler(hnd types.ProtectedHandlerFunc) (http.HandlerFunc, error) {
-	if hc.jwtMiddleware == nil {
-		return nil, fmt.Errorf("ошибка создания обработчика: jwtMiddleware равен nil")
+func (hc *HandlerCreator) CreateProtectedHandler(
+	handler core.HandlerFunc,
+	roles []string,
+) (http.HandlerFunc, error) {
+	if err := hc.validateJwtMiddleware(); err != nil {
+		return nil, err
 	}
 
-	handler := hc.jwtMiddleware(hnd.GetHandler(), hnd.GetRoles())
-
-	return hc.CreateHandler(handler), nil
+	return hc.jwtMiddleware(hc.CreateHandler(handler), roles), nil
 }
 
-func (hc *HandlerCreator) CreateHandler(hnd types.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (hc *HandlerCreator) CreateNoFilterProtectedHandler(
+	handler http.HandlerFunc,
+	roles []string,
+) (http.HandlerFunc, error) {
+	if err := hc.validateJwtMiddleware(); err != nil {
+		return nil, err
+	}
 
-		result := hnd(r)
+	return hc.jwtMiddleware(handler, roles), nil
+}
+
+func (hc *HandlerCreator) CreateHandler(
+	handler core.HandlerFunc,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result := handler(r)
 
 		if hc.resultFilter != nil {
 			hc.resultFilter(w, r, result)
 			return
 		}
 
-		w.Header().Set(
-			"Content-Type",
-			"application/json",
-		)
-
-		w.WriteHeader(result.StatusCode)
-
-		if result.Error != nil {
-			hc.writeResponse(w, r, result.Error.Error())
-			return
-		}
-
-		hc.writeResponse(w, r, result.Data)
+		hc.writeResult(w, r, result)
 	}
 }
 
-func (hc *HandlerCreator) writeResponse(w http.ResponseWriter, r *http.Request, data any) {
+func (hc *HandlerCreator) writeResult(
+	w http.ResponseWriter,
+	r *http.Request,
+	result core.HandlerResult,
+) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(result.StatusCode)
+
+	if result.Error != nil {
+		hc.writeResponse(w, r, result.Error.Error())
+		return
+	}
+
+	hc.writeResponse(w, r, result.Data)
+}
+
+func (hc *HandlerCreator) writeResponse(
+	w http.ResponseWriter,
+	r *http.Request,
+	data any,
+) {
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log := hc.loggerFactory.NewLogger(fmt.Sprintf("handler:%s", r.URL.Path))
-		log.LogError(
+		hc.logger.LogError(
 			"ошибка сериализации ответа на %s %s: %s",
 			r.Method,
 			r.URL.Path,
 			err,
 		)
 	}
+}
+
+func (hc *HandlerCreator) validateJwtMiddleware() error {
+	if hc.jwtMiddleware == nil {
+		return fmt.Errorf(
+			"ошибка создания обработчика: jwtMiddleware равен nil",
+		)
+	}
+
+	return nil
 }

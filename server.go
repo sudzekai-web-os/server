@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/sudzekai-web-os/abstractions"
+	"github.com/sudzekai-web-os/core"
 )
 
 type Server struct {
@@ -17,14 +17,14 @@ type Server struct {
 	host string
 	port int
 
-	handlersRegistry abstractions.IHandlersRegistry
+	handlersRegistry core.IHandlersRegistry
 
-	logger abstractions.ILogger
+	logger core.ILogger
 
 	isListening bool
 }
 
-func NewServer(loggerFactory abstractions.ILoggerFactory) abstractions.IServer {
+func NewServer(loggerFactory core.ILoggerFactory) core.IServer {
 	return &Server{
 		handlersRegistry: NewHandlersRegistry(loggerFactory),
 		logger:           loggerFactory.NewLogger("server"),
@@ -97,6 +97,6 @@ func (srv *Server) IsListening() bool {
 	return srv.isListening
 }
 
-func (srv *Server) GetRegistry() abstractions.IHandlersRegistry {
+func (srv *Server) GetRegistry() core.IHandlersRegistry {
 	return srv.handlersRegistry
 }
